@@ -13,6 +13,7 @@ set -o errexit
 
 export DEBIAN_FRONTEND=noninteractive
 
+echo "Starting InstallMaster.sh script at: " `date`
 
 # Don't change this. Set the Global Var: CLUSTER_DNS
 ETCD_VERSION_DEFAULT="2.0.12"
@@ -42,20 +43,20 @@ service docker stop
 sleep 10
 
 # Run Flannel
-echo "Starting Flannel"
+echo "Starting Flannel" `date`
 TOKEN=`docker -H unix:///var/run/docker-bootstrap.sock run -d --net=host --privileged -v /dev/net:/dev/net quay.io/coreos/flannel:0.5.0 | tail -n1`
 sleep 10
 echo "  Detected token: ${TOKEN}"
 docker -H unix:///var/run/docker-bootstrap.sock exec ${TOKEN} cat /run/flannel/subnet.env > /etc/flannel_subnet.env
 
 # Edit the docker configuration
-echo "Modifying docker configuration"
+echo "Modifying docker configuration" `date`
 TMPFILE=`tempfile`
 (cat /etc/default/docker /etc/flannel_subnet.env ; echo DOCKER_OPTS='"--bip=${FLANNEL_SUBNET} --mtu=${FLANNEL_MTU}"' ) > TMPFILE
 mv -f TMPFILE /etc/default/docker
 
 # Remove the existing Docker bridge
-echo "Removing docker bridge: docker0"
+echo "Removing docker bridge: docker0" `date`
 
 if [[ $(/sbin/ifconfig -a | grep -q docker0) -eq 0 ]]; then
 	/sbin/ifconfig docker0 down
@@ -63,13 +64,13 @@ if [[ $(/sbin/ifconfig -a | grep -q docker0) -eq 0 ]]; then
 fi
 
 # Start docker service
-echo "Starting docker service"
-service docker start
+echo "Starting docker service" `date`
+service docker start 
 
 # Start the kubernetes master
-echo "Starting kubernetes master"
+echo "Starting kubernetes master" `date`
 docker run --net=host -d -v /var/run/docker.sock:/var/run/docker.sock  gcr.io/google_containers/hyperkube:${KUBEVERSION-$KUBEVERSION_DEFAULT} /hyperkube kubelet --api-servers=http://localhost:8080 --v=2 --address=0.0.0.0 --enable-server --hostname-override=127.0.0.1 --config=/etc/kubernetes/manifests-multi --cluster-dns=${CLUSTER_DNS-$CLUSTER_DNS_DEFAULT} --cluster-domain=${CLUSTER_DOMAIN-$CLUSTER_DOMAIN_DEFAULT}
-echo "Starting kubernetes proxy"
+echo "Starting kubernetes proxy" `date`
 docker run -d --net=host --privileged gcr.io/google_containers/hyperkube:${KUBEVERSION-$KUBEVERSION_DEFAULT} /hyperkube proxy --master=http://127.0.0.1:8080 --v=2
 
 # Download kubectl
@@ -79,7 +80,7 @@ chmod +x /kubectl
 
 # Install UI
 sleep 10 
-echo "Installing kube-ui"
+echo "Installing kube-ui" `date`
 CURDIR=`pwd`
 TMPDIR=`mktemp -d`
 cd ${TMPDIR}
@@ -91,5 +92,8 @@ cd ${CURDIR}
 
 MASTER_IP=`ifconfig eth0 | grep "inet addr" | awk -F: '{ print $2 }' | awk '{ print $1 }'`
 echo " Kube-UI access: http://${MASTER_IP}:8080/ui "
-echo "Installation of Kubernetes Master done"
+echo "Installation of Kubernetes Master done" `date`
+
+
+exit 0;
 
